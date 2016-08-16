@@ -129,21 +129,19 @@ If all is well, you should see a page welcoming you to Zeppelin.
 
 A "note" is how we use Zeppelin to execute code in Spark. To create one, click `Create new note`, and name your note whatever you like — for example, "k-means".
 
-When your note opens, it will have created your first "paragraph" (the block-looking thing).  
-Replace what's in it with
+When your note opens, it will have created your first "paragraph" (the block-looking thing). Replace what's in it with:
 
 ```scala
 %spark
 println("testing testing 1-2-3")
 ```
 
-and press the Play button or hit `Shift+Enter` to run the paragraph.  
-After a long pause (during which your computer is submitting your code to Spark), the browser should print your message — if it does, you'll know Spark is alive and waiting.
+and press the Play button or hit `Shift+Enter` to run the paragraph. After a long pause (during which your computer is submitting your code to Spark), the browser should print your message — if it does, you'll know Spark is alive and waiting.
 
 
 #### Step 5 — Unzip your data and load it into Spark
 
-Now replace everything in your first paragraph with
+Now replace everything in your first paragraph with the following:
 
 ```bash
 %sh
@@ -153,22 +151,22 @@ gunzip /var/zeppelin/data/kddcup.data_10_percent.gz
 > ##### What's going on:
 > The `%sh` tells Zeppelin to submit your command to the shell instead of Spark, and `gunzip` unzips our data file.
 
-If this completes happily, this means you've successfully loaded your dataset where Spark can reach it — often, this is the hardest part of a big data problem.
+Press Play or hit `Shift+Enter` to run the paragraph again. If it becomes `FINISHED` with no errors, this means you've successfully loaded your dataset where Spark can reach it — often, this is the hardest part of a big data problem.
 
 
 #### Step 6 — Load our data into Spark and inspect it a little
 
 Create a new paragraph (by hovering over the bottom border of your last paragraph until you see the + and clicking).
-In the new block, paste in:
+In the new paragraph, paste in:
 
 ```scala
 %spark
-val rawData = sc.textFile("/etc/zeppelin/data/kddcup.data")
+val rawData = sc.textFile("/var/zeppelin/data/kddcup.data_10_percent")
 rawData.take(10).foreach(println)
 rawData.count()
 ```
 
-and run the block (by hitting the Play button or `Shift+Enter`).
+and run the paragraph (by hitting the Play button or `Shift+Enter`).
 
 This loads the data file into Spark as the variable `rawData`, prints the first 10 records so we can see what our data looks like, and counts the total number of records in our data set.
 
@@ -177,7 +175,7 @@ As you can see, each record is a string of comma-separated data, containing 38 f
 
 #### Step 7 — Tally up how many of each label there are
 
-Create another new block below.
+Create another new paragraph below.
 
 Begin by exploring the data set. What categories are present in the data, and how many data points are there in each category? Paste in and run the following code to see:
 
@@ -193,7 +191,7 @@ This splits off the label, counts up total number of records per label, sorts th
 #### Step 8 — Maybe that would look better as a graph
 
 The Zeppelin graphing language is a little weird, but let's try it out.  
-Create a new block, and paste in and run:
+Create a new paragraph, and paste in and run:
 
 ```scala
 %spark
@@ -211,7 +209,7 @@ Okay, enough poking around — let's start our *k*-means clustering.
 
 Right now, our data contains some nonnumeric features — for example, the second column may be tcp, udp, or icmp, and the final column (which we just explored) is a nonnumeric category label. *k*-means clustering requires numeric features, so for now, we'll just ignore the nonnumeric fields.
 
-In another new block, paste in and run:
+In another new paragraph, paste in and run:
 
 ```scala
 %spark
@@ -228,14 +226,14 @@ val labelsAndData = rawData.map { line =>
 val preparedData = labelsAndData.values.cache()
 ```
 
-This splits the comma-separated-value strings into columns, removes the three categorical value columns at indices 1-3, and removes the final column. The remaining values are converted to an array of `Double`s and emitted with the final label column in a tuple.
+The output here won't show much, but this splits the comma-separated-value strings into columns, removes the three categorical value columns at indices 1-3, and removes the final column. The remaining values are converted to an array of `Double`s and emitted with the final label column in a tuple.
 
 
 #### Step 10 — Machine-learning time: first pass at *k*-means clustering
 
 *k*-means is built into the Spark MLLib standard library, so clustering our data is as simple as importing the `KMeans` implementation and running it.
 
-The following code clusters the data to create a `KMeansModel` and then prints its centroids. Create a new block, paste it in, and run:
+The following code clusters the data to create a `KMeansModel` and then prints its centroids. Create a new paragraph, paste it in, and run:
 
 ```scala
 %spark
@@ -257,7 +255,7 @@ For a complex data set (that we secretly know has at least 23 distinct types of 
 
 This is a good place for us to use the given categories to get an idea of what went into these two clusters — we can look at the categories that ended up in each cluster.
 
-Create a new block, paste in the following code, and run. This assigns every data point to one of the two clusters using the model, counts up how many points in each category are in each cluster, then shows this in a table or graph.
+Create a new paragraph, paste in the following code, and run. This assigns every data point to one of the two clusters using the model, counts up how many points in each category are in each cluster, then shows this in a table or graph.
 
 ```scala
 %spark
@@ -273,7 +271,7 @@ clusterLabelCount.toSeq.sorted.foreach {
 }
 ```
 
-The result shows that the clustering was pretty unhelpful — how many points ended up in each cluster?
+The result shows that the clustering was pretty unhelpful — only one point ended up in the second cluster.
 
 
 #### Step 11 — This time, let's choose a better *k* (with math)
@@ -282,7 +280,8 @@ So two clusters aren't enough — how many clusters should we choose for this d
 
 A clustering could be considered better if its data points were closer to their respective centroids. To keep track of our distances, let's define a Euclidean distance function and a function that returns the distance from a data point to its nearest cluster's centroid. In a new paragraph, paste in and run:
 
-```
+```scala
+%spark
 def euclideanDistance(a: Vector, b: Vector) =
   math.sqrt(a.toArray.zip(b.toArray).
     map(p => p._1 - p._2).map(d => d * d).sum)
@@ -293,8 +292,6 @@ def distanceToCentroid(datum: Vector, model: KMeansModel) = {
   euclideanDistance(centroid, datum)
 }
 ```
-
-You can read off the definition of Euclidean distance here by unpacking the Scala function, in reverse: sum (sum) the squares (map(d => d * d)) of differences (map(p => p._1 - p._2)) in corresponding elements of two vectors (a.toArray.zip(b.toArray)), and take the square root (math.sqrt).
 
 
 #### Step 12 — More math towards a better *k*
@@ -312,7 +309,7 @@ def clusteringScore(data: RDD[Vector], k: Int) = {
   data.map(datum => distanceToCentroid(datum, model)).mean()
 }
 
-(5 to 40 by 5).map(k => (k, clusteringScore(data, k))).
+(5 to 40 by 5).map(k => (k, clusteringScore(preparedData, k))).
   foreach(println)
 ```
 
