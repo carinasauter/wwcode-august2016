@@ -31,6 +31,9 @@ The language we'll use to talk to Spark is Scala.
 - Open a terminal window and type `docker run hello-world` to test whether your installation is working.
 - If you see output that contains the line "Hello from Docker!", keep this terminal window open and proceed to step one.
 
+> ##### Note:
+> If you have a 2009 or older Mac, you may get an error at some point during this process — if so, go down to section **Step 0 (if you're on Mac OS X 10.10.2 or older, or on a 2009-or-older Mac)** and follow the instructions there.
+
 
 #### Step 0 (if you're on Windows 10 Professional/Enterprise 64-bit) — Install and run Docker for Windows
 
@@ -41,7 +44,7 @@ The language we'll use to talk to Spark is Scala.
 - If you see output that contains the line "Hello from Docker!", keep this terminal window open and proceed to step one.
 
 
-#### Step 0 (if you're on Mac OS X 10.10.2 or older) — Install and run Docker Toolbox
+#### Step 0 (if you're on Mac OS X 10.10.2 or older, or on a 2009-or-older Mac) — Install and run Docker Toolbox
 
 - Visit the [Docker Toolbox](https://www.docker.com/products/docker-toolbox) page and download Docker Toolbox (Mac version).
 - Open the downloaded .pkg file and follow the prompts to install the Toolbox.
@@ -110,7 +113,7 @@ Great — preparation complete.
 
 #### Step 3 — Run the Spark-and-Zeppelin image and check that it's working
 
-- Open a terminal/shell window. (For those using Docker Toolbox, this needs to be a Docker Quickstart Terminal window.)
+- Open a terminal/shell window. (For those using Docker Toolbox, this needs to be a Docker Quickstart Terminal window — if you've freshly installed Docker Toolbox, you should have one open from the installation process.)
 - Run this command (with the `<your zeppelin-data folder path>` replaced with your folder from step 2):
 
 ##### If you're using Docker for Mac or Docker for Windows, *not* Docker Toolbox:
