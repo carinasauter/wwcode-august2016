@@ -26,7 +26,7 @@ The language we'll use to talk to Spark is Scala.
 #### Step 0 (if you're on Mac OS X 10.10.3 or newer) — Install and run Docker for Mac
 
 - Visit the [Docker for Mac](https://www.docker.com/products/docker#/mac) page and download Docker for Mac.
-- Open the downloaded .dmg file and drag Docker to your Applications folder.
+- Open the downloaded `.dmg` file and drag Docker to your Applications folder.
 - Run Docker.
 - Open a terminal window and type `docker run hello-world` to test whether your installation is working.
 - If you see output that contains the line "Hello from Docker!", keep this terminal window open and proceed to step one.
@@ -35,7 +35,10 @@ The language we'll use to talk to Spark is Scala.
 #### Step 0 (if you're on Windows 10 Professional/Enterprise 64-bit) — Install and run Docker for Windows
 
 - Visit the [Docker for Windows](https://www.docker.com/products/docker#/windows) page and download Docker for Windows.
-- ...
+- Open the downloaded `.msi` file and follow the prompts to install Docker for Windows.
+- At the end of the install process, check Launch Docker and hit Finish.
+- Open a shell window (`cmd.exe`, PowerShell, or any other if you have one installed) and type `docker run hello-world` to test whether your installation is working.
+- If you see output that contains the line "Hello from Docker!", keep this terminal window open and proceed to step one.
 
 
 #### Step 0 (if you're on Mac OS X 10.10.2 or older) — Install and run Docker Toolbox
@@ -50,13 +53,14 @@ The language we'll use to talk to Spark is Scala.
 
 #### Step 0 (if you're on a version of Windows other than Windows 10 Professional/Enterprise 64-bit) — Install and run Docker Toolbox
 
-- Visit the [Docker Toolbox](https://www.docker.com/products/docker-toolbox) page and download Docker Toolbox (Mac version).
-- ...
+- Visit the [Docker Toolbox](https://www.docker.com/products/docker-toolbox) page and download Docker Toolbox (Windows version).
+- Follow the installation instructions [here](https://docs.docker.com/toolbox/toolbox_install_windows/).
+- After the step where you run `docker run hello-world` to test whether your installation is working, keep the shell window open and proceed to step one.
 
 
 #### Step 1 — Get Spark-and-Zeppelin image
 
-Now that you have Docker installed and running, you can get a Linux virtual machine with Hadoop, Spark, and Zeppelin pre-installed running. Run this command in the terminal:
+Now that you have Docker installed and running, you can get a Linux virtual machine with Hadoop, Spark, and Zeppelin pre-installed running. Run this command in the terminal/shell:
 
 ```bash
 docker pull melindalu/zap
@@ -106,10 +110,17 @@ Great — preparation complete.
 
 #### Step 3 — Run the Spark-and-Zeppelin image and check that it's working
 
-- Open a terminal window. (For those using Docker Toolbox, this needs to be a Docker Quickstart Terminal window.)
+- Open a terminal/shell window. (For those using Docker Toolbox, this needs to be a Docker Quickstart Terminal window.)
 - Run this command (with the `<your zeppelin-data folder path>` replaced with your folder from step 2):
 
+##### If you're using Docker for Mac or Docker for Windows, *not* Docker Toolbox:
 ```bash
+docker create -v <your zeppelin-data folder path>:/var/zeppelin/data -p 8080:8080 melindalu/zap | xargs docker start -i
+```
+
+##### If you're using Docker Toolbox on Mac or Windows (*not* Docker for Mac or Docker for Windows), 
+```bash
+docker-machine ssh default -f -N -L 8080:localhost:8080
 docker create -v <your zeppelin-data folder path>:/var/zeppelin/data -p 8080:8080 melindalu/zap | xargs docker start -i
 ```
 
