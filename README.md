@@ -73,7 +73,7 @@ This requires a 777 MB download, so it may take a while.
     - `~/Downloads/zeppelin` (if you're on Mac OS X) or
     - `C:\Users\[username]\Downloads\zeppelin` (if you're on Windows).
 - Remember this folder's path! We're going to reference it as `<your zeppelin-data folder path>` in step 3.
-- Move the data file you've copied into that folder.
+- Move the data file you've copied into that folder (don't unzip it yet — we'll do that in our container, in step 5).
 
 Great — preparation complete.
 
@@ -117,7 +117,7 @@ docker create -v <your zeppelin-data folder path>:/var/zeppelin/data -p 8080:808
 > - `melindalu/zap` is the Docker image (already saved locally) that we're running.
 > - The `-v <your zeppelin-data folder path>:/var/zeppelin/data` part makes your Zeppelin data folder accessible as a folder inside your Docker container.
 > - The `-p 8080:8080` part makes the Zeppelin web server running on port 8080 in the Docker container accessible to your laptop.
-> - `| xargs` pipes the result of `docker create` to `docker start`
+> - `| xargs` pipes the result of `docker create` to `docker start`.
 > - `docker start -i` starts the image interactively — that is, with the container's command-line input available.
 
 This will show a series of initialization steps as Spark and Zeppelin start up.
@@ -126,6 +126,8 @@ If all is well, you should see a page welcoming you to Zeppelin.
 
 
 #### Step 4 — Create a new note and check that it's working
+
+(From now on, everything we're doing will be in the browser, in Zeppelin — we won't be touching the terminal again until the very end, unless something goes wrong.)
 
 A "note" is how we use Zeppelin to execute code in Spark. To create one, click `Create new note`, and name your note whatever you like — for example, "k-means".
 
@@ -151,13 +153,12 @@ gunzip /var/zeppelin/data/kddcup.data_10_percent.gz
 > ##### What's going on:
 > The `%sh` tells Zeppelin to submit your command to the shell instead of Spark, and `gunzip` unzips our data file.
 
-Press Play or hit `Shift+Enter` to run the paragraph again. If it becomes `FINISHED` with no errors, this means you've successfully loaded your dataset where Spark can reach it — often, this is the hardest part of a big data problem.
+Press Play or hit `Shift+Enter` to run the paragraph again. If it gets marked `FINISHED` with no errors, this means you've successfully loaded your dataset where Spark can reach it — often, this is the hardest part of a big data problem.
 
 
 #### Step 6 — Load our data into Spark and inspect it a little
 
-Create a new paragraph (by hovering over the bottom border of your last paragraph until you see the + and clicking).
-In the new paragraph, paste in:
+If Zeppelin hasn't already created a new paragraph for you below your first one, create one (by hovering over the bottom border of your last paragraph until you see the + and clicking). In the new paragraph, paste in:
 
 ```scala
 %spark
@@ -168,6 +169,8 @@ rawData.count()
 
 and run the paragraph (by hitting the Play button or `Shift+Enter`).
 
+> *Note:* Sometimes Zeppelin will show `ERROR` when there's no error in a block, usually when you hit Play or `Shift+Enter` really fast — in these cases, just try running again, and it *should* work.
+
 This loads the data file into Spark as the variable `rawData`, prints the first 10 records so we can see what our data looks like, and counts the total number of records in our data set.
 
 As you can see, each record is a string of comma-separated data, containing 38 features. Some features are counts, many features have value either 0 or 1, and a category is given in the last field. We're not going to use the categories to help with clustering, but we can look at them before we start to get an idea of what to expect.
@@ -177,7 +180,7 @@ As you can see, each record is a string of comma-separated data, containing 38 f
 
 Create another new paragraph below.
 
-Begin by exploring the data set. What categories are present in the data, and how many data points are there in each category? Paste in and run the following code to see:
+We'll start by exploring the data set. What categories are present in the data, and how many data points are there in each category? Paste in and run the following code to see:
 
 ```scala
 %spark
@@ -190,7 +193,7 @@ This splits off the label, counts up total number of records per label, sorts th
 
 #### Step 8 — Maybe that would look better as a graph
 
-The Zeppelin graphing language is a little weird, but let's try it out.  
+Let's try out Zeppelin's automatic graphing ability.  
 Create a new paragraph, and paste in and run:
 
 ```scala
@@ -220,7 +223,7 @@ val labelsAndData = rawData.map { line =>
   buffer.remove(1, 3)
   val label = buffer.remove(buffer.length - 1)
   val vector = Vectors.dense(buffer.map(_.toDouble).toArray)
-  (label,vector)
+  (label, vector)
 }
 
 val preparedData = labelsAndData.values.cache()
@@ -261,7 +264,7 @@ Create a new paragraph, paste in the following code, and run. This assigns every
 %spark
 val clusterLabelCount = labelsAndData.map { case (label, datum) =>
   val cluster = firstModel.predict(datum)
-  (cluster,label)
+  (cluster, label)
 }.countByValue
 
 println("%table cluster\tlabel\tcount")
@@ -274,7 +277,7 @@ clusterLabelCount.toSeq.sorted.foreach {
 The result shows that the clustering was pretty unhelpful — only one point ended up in the second cluster.
 
 
-#### Step 11 — This time, let's choose a better *k* (with math)
+#### Step 12 — This time, let's choose a better *k* (with math)
 
 So two clusters aren't enough — how many clusters should we choose for this data set? We know that there are 23 distinct patterns in the data, so it seems that *k* could be at least 23 — probably even more. Typically, a data scientist will try many values of *k* in order to find the best one. How does she define "best?
 
@@ -293,10 +296,15 @@ def distanceToCentroid(datum: Vector, model: KMeansModel) = {
 }
 ```
 
+> You can unpack the definition of Euclidean distance by reading our Scala function in reverse:  
+> Sum (`sum`) the squares (`map(d => d * d)`) of differences (`map(p => p._1 - p._2)`) in corresponding elements of two vectors (`a.toArray.zip(b.toArray)`), and take the square root (`math.sqrt`).
 
-#### Step 12 — More math towards a better *k*
+(Again, the output here won't show much.)
 
-Using the above, we can define a scoring function that measures the average distance to centroid for a model built with a given *k*. Create a new paragraph, paste in, and run:
+
+#### Step 13 — Try out several different values for *k* and graph your findings
+
+Using the above, we can define a scoring function that measures the average distance to centroid for a model built with a given *k*. In a new paragraph, paste in and run:
 
 ```scala
 %spark
@@ -309,42 +317,69 @@ def clusteringScore(data: RDD[Vector], k: Int) = {
   data.map(datum => distanceToCentroid(datum, model)).mean()
 }
 
-(5 to 40 by 5).map(k => (k, clusteringScore(preparedData, k))).
-  foreach(println)
+println("%table k\tscore")
+(10 to 100 by 10).map(k => (k, clusteringScore(preparedData, k))).
+  foreach{ case (chosenK, score) => println(s"$chosenK\t$score") }
 ```
 
-Here we're written our scoring function and are using it to evaluate values of *k* from 5 to 40.
+> `(x to y by z)` is a Scalaism for creating a collection of numbers between a start and end, inclusive, with a given difference between successive elements. This is a concise way to create the values `k = 10, 20, 30, 40, 50, 60, 70, 80, 90, 100` then do something with each.
 
-> `(x to y by z)` is a Scalaism for creating a collection of numbers between a start and end, inclusive, with a given difference between successive elements. This is a concise way to create the values `k = 5, 10, 15, 20, 25, 30, 35, 40` then do something with each.
+Here we're written our scoring function and are using it to evaluate values of *k* from 5 to 40, then graphing our results. For each value of *k*, we're running our clustering algorithm to get a model, then scoring a model — so this will take ten times as long as our first pass.
 
 The result should show that the score decreases as *k* increases.
 
+Try switching to the line-graph view. We want to find the point where increasing *k* stops reducing the score much, or an "elbow" in the graph of *k* versus score.
 
-#### Step 13 — Plot our results for different *k*s
+> **Remember:** As more clusters are added, it should always be possible to make data points closer to a nearest centroid. In fact, if *k* is chosen to equal the number of data points, the average distance will be 0, because every point will be its own cluster of one.
+
+
+#### Step 14 — Redo clustering with a new, better *k* and see how well we've done
+
+Let's say that `40` looks like a nice value of *k* to try next. In a new paragraph, paste and run:
 
 ```scala
 %spark
-<TODO>
+kmeans.setK(40)
+val secondModel = kmeans.run(preparedData)
+
+secondModel.clusterCenters.foreach(println)
 ```
 
-#### Step 14 — Redo clustering with our new, better *k*
-
-```scala
-%spark
-<TODO>
-```
+This runs a new *k*-means model for `k = 40` and prints the resulting 40 centroids.
 
 #### Step 15 — Visualize our clusters
 
+It's hard to see what's going on, though, with 500k data points. We'd like to visualize what our clustering is doing.
+
 ```scala
 %spark
-<TODO>
+val clusterXYSample = labelsAndData.map { case (label, datum) =>
+  val cluster = secondModel.predict(datum)
+  (cluster, datum.apply(12), datum.apply(13))
+}.collect()
+
+println("%table x\ty\tcluster")
+clusterXYSample.foreach{
+  case (cluster, x, y) => println(s"$x\t$y\t$cluster")
+}
 ```
+
+Since we have 34 dimensions in our data but only 2 dimensions on screen, we're (arbitrarily) choosing two fields to plot (with `datum.apply(12)` and `datum.apply(13)`).  
+The best way to look at this is probably with a scatterplot — choose the scatterplot-looking chart type (the rightmost one), then click the settings link to the buttons' right.  
+Drag the labels around until you have xAxis = x, yAxis = y, and group = cluster.
+
+Feel free to change the field numbers in the code and re-run to see how the graph changes.
+
 
 ## Where to next
 
+### Feature normalization
+
 ```
-Feature normalization
+<TODO>
+```
+
+```
 Putting our categorical variables back in
 Better measures of cluster quality
 Streaming KMeans
