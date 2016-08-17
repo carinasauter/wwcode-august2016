@@ -20,6 +20,7 @@ The language we'll use to talk to Spark is Scala.
 > Optional/explanatory text will be offset like this. You don't have to do anything with it, or even read it if you don't want to, though it may make things less confusing.
 
 
+
 ## Preparation (time-consuming downloads)
 
 #### Step 0 (if you're on Mac OS X 10.10.3 or newer) — Install and run Docker for Mac
@@ -83,7 +84,7 @@ Great — preparation complete.
 > ### The problem
 
 > We're going to use a really common unsupervised machine-learning technique called **clustering**. Often, we have a bunch of data that we know nothing about, and we want to find out what patterns there are in the data.
-> Clustering is a way we can try finding natural groupings in data — by putting data points that are like each other, but unlike others, in the same cluster.
+> Clustering is a way we can look for natural groupings in data — by putting data points that are like each other, but unlike others, in the same cluster.
 
 > Clustering lets us pinpoint data points that are anomalous, or out of the ordinary. For example, it can help us discover problems on servers or with sensor-equipped machinery, where we often need to detect failure modes we haven't seen before.
 
@@ -171,7 +172,7 @@ and run the paragraph (by hitting the Play button or `Shift+Enter`).
 
 > *Note:* Sometimes Zeppelin will show `ERROR` when there's no error in a block, usually when you hit Play or `Shift+Enter` really fast — in these cases, just try running again, and it *should* work.
 
-This loads the data file into Spark as the variable `rawData`, prints the first 10 records so we can see what our data looks like, and counts the total number of records in our data set.
+This loads the data file into Spark as the variable `rawData`, prints the first 10 records so we can see what our data looks like, and counts the total number of records in our data set (a lot!).
 
 As you can see, each record is a string of comma-separated data, containing 38 features. Some features are counts, many features have value either 0 or 1, and a category is given in the last field. We're not going to use the categories to help with clustering, but we can look at them before we start to get an idea of what to expect.
 
@@ -199,7 +200,7 @@ Create a new paragraph, and paste in and run:
 ```scala
 %spark
 println("%table label\tcount")
-labelCounts.foreach{ case (label, count) => println(label + "\t" + count)}
+labelCounts.foreach { case (label, count) => println(label + "\t" + count)}
 ```
 
 This should have autocreated a little pop-out row of icons.  
@@ -219,7 +220,7 @@ In another new paragraph, paste in and run:
 import org.apache.spark.mllib.linalg._
 
 val labelsAndData = rawData.map { line =>
-  val buffer = line.split(',').toBuffer // toBuffer creates Buffer, a mutable list
+  val buffer = line.split(',').toBuffer
   buffer.remove(1, 3)
   val label = buffer.remove(buffer.length - 1)
   val vector = Vectors.dense(buffer.map(_.toDouble).toArray)
@@ -265,7 +266,7 @@ Create a new paragraph, paste in the following code, and run. This assigns every
 val clusterLabelCount = labelsAndData.map { case (label, datum) =>
   val cluster = firstModel.predict(datum)
   (cluster, label)
-}.countByValue
+}.countByValue()
 
 println("%table cluster\tlabel\tcount")
 clusterLabelCount.toSeq.sorted.foreach {
@@ -317,9 +318,8 @@ def clusteringScore(data: RDD[Vector], k: Int) = {
   data.map(datum => distanceToCentroid(datum, model)).mean()
 }
 
-println("%table k\tscore")
 (10 to 100 by 10).map(k => (k, clusteringScore(preparedData, k))).
-  foreach{ case (chosenK, score) => println(s"$chosenK\t$score") }
+  foreach { case (chosenK, score) => println(s"$chosenK\t$score") }
 ```
 
 > `(x to y by z)` is a Scalaism for creating a collection of numbers between a start and end, inclusive, with a given difference between successive elements. This is a concise way to create the values `k = 10, 20, 30, 40, 50, 60, 70, 80, 90, 100` then do something with each.
@@ -356,32 +356,160 @@ It's hard to see what's going on, though, with 500k data points. We'd like to vi
 val clusterXYSample = labelsAndData.map { case (label, datum) =>
   val cluster = secondModel.predict(datum)
   (cluster, datum.apply(12), datum.apply(13))
-}.collect()
+}.sample(false, 0.1).collect()
 
 println("%table x\ty\tcluster")
-clusterXYSample.foreach{
+clusterXYSample.foreach {
   case (cluster, x, y) => println(s"$x\t$y\t$cluster")
 }
 ```
 
 Since we have 34 dimensions in our data but only 2 dimensions on screen, we're (arbitrarily) choosing two fields to plot (with `datum.apply(12)` and `datum.apply(13)`).  
-The best way to look at this is probably with a scatterplot — choose the scatterplot-looking chart type (the rightmost one), then click the settings link to the buttons' right.  
-Drag the labels around until you have xAxis = x, yAxis = y, and group = cluster.
+Here the `sample(false, 0.1)` is randomly selecting 10% of our data points to plot, to avoid overloading our computers.
 
-Feel free to change the field numbers in the code and re-run to see how the graph changes.
+The best way to look at this is probably with a scatterplot — choose the scatterplot-looking chart type (the rightmost one), then click the settings link to the buttons' right.  
+Drag the labels around until you have xAxis = x, yAxis = y, and group = cluster.  
+The resulting visualization shows data points colored by cluster number in 2D space.
+
+Feel free to change the field numbers in the code (to anything between 0 and 33, inclusive) and re-run to see how the graph changes.
+
+
+#### Step 16 — Normalize our data, then rerun our find-the-best-*k* routine
+
+There's a problem with the way we're processing our data.
+Our data set has two features that are on a much larger scale than the others — bytes sent and bytes received vary from zero to tens of thousands, while most features have values between 0 and 1.
+This means that the Euclidean distance between points has been almost completely determined by these two features.
+Not to worry — we can normalize our data to remove these differences in scale by converting each feature to a standard store. We need to find the mean of the feature's values, subtract this mean from each value, and divide each by the feature's standard deviation.
+In Spark and Scala, this can be done efficiently by combining operations.
+
+In a new paragraph, paste and run:
+
+```scala
+%spark
+def buildNormalizationFunction(data: RDD[Vector]): (Vector => Vector) = {
+  val dataAsArray = data.map(_.toArray)
+  val numCols = dataAsArray.first().length
+  val n = dataAsArray.count()
+  val sums = dataAsArray.reduce(
+    (a, b) => a.zip(b).map(t => t._1 + t._2))
+  val sumSquares = dataAsArray.aggregate(
+      new Array[Double](numCols)
+    )(
+      (a, b) => a.zip(b).map(t => t._1 + t._2 * t._2),
+      (a, b) => a.zip(b).map(t => t._1 + t._2)
+    )
+  val stdevs = sumSquares.zip(sums).map {
+    case (sumSq, sum) => math.sqrt(n * sumSq - sum * sum) / n
+  }
+  val means = sums.map(_ / n)
+
+  (datum: Vector) => {
+    val normalizedArray = (datum.toArray, means, stdevs).zipped.map(
+      (value, mean, stdev) =>
+        if (stdev <= 0)  (value - mean) else  (value - mean) / stdev
+    )
+    Vectors.dense(normalizedArray)
+  }
+}
+
+val data = rawData.map { line =>
+  val buffer = line.split(',').toBuffer
+  buffer.remove(1, 3)
+  buffer.remove(buffer.length - 1)
+  Vectors.dense(buffer.map(_.toDouble).toArray)
+}
+
+val normalizeFunction = buildNormalizationFunction(data)
+val normalizedData = data.map(normalizeFunction).cache()
+
+println("%table k\tscore")
+(50 to 170 by 20).map(k => (k, clusteringScore(normalizedData, k))).
+  foreach { case (chosenK, score) => println(s"$chosenK\t$score") }
+```
+
+This
+- builds a normalization function,
+- runs it on our full dataset, and
+- runs our best-*k* scoring routine again for varying values of *k* to see what we should choose.
+
+Look at the line graph again — this time we can see that a *k* of around 150 might be best.
+
+
+#### Step 17 — Redo clustering on our new, nicely-normalized data with our new, better *k*
+
+Phew, that was lots of computing. Now let's put it to good use by rerunning our clustering algorithm for real.
+
+In a new paragraph, paste and run:
+
+```scala
+%spark
+kmeans.setK(150)
+val thirdModel = kmeans.run(normalizedData)
+```
+
+(This time we won't print all 150 centroids — but they're there.)
+
+
+#### Step 18 — Find some anomalies in our existing dataset
+
+Now that we have `k = 150` clusters, let's see which of our existing points our model believes are most anomalous.
+
+```scala
+%spark
+val distances = normalizedData.map(datum => distanceToCentroid(datum, thirdModel))
+val threshold = distances.top(100).last
+
+val anomalies = labelsAndData.filter { case (label, datum) =>
+  val normalized = normalizeFunction(datum)
+  distanceToCentroid(normalized, thirdModel) > threshold
+}
+
+anomalies.take(10).foreach(println)
+```
+
+Here we're filtering our data set to find the data points that are further than a certain threshold from their cluster's centroid. We then print the first 10 of these `anomalies` to get an idea of what they look like. A network security expert could probably tell you why these are or aren't strange — for example, several of them are labeled `normal.` but have strange traits, like 300 connections in a brief time.
+
+Hooray — we've built an anomaly detector! Unfortunately, it's trained on network patterns from 1999, so it's likely not super useful. But pat yourself on the back anyway, you deserve it :D
 
 
 ## Where to next
 
-### Feature normalization
+If we wanted to put our anomaly detector into production (not recommended — get a fresher data set), we could put the code we've written into Spark Streaming and use it to score new data as it arrives in near-real-time. If incoming data is marked anomalous, this could trigger an alert for further review.
 
-```
-<TODO>
+If we wanted to update the model itself to reflect the new data coming in, we could use a variation of Spark MLLib's `KMeans` algorithm called `StreamingKMeans`, which can update a clustering incrementally.
+
+We can, of course, improve our data further — we excluded three categorical features early on purely for convenience, and we can add them back by translating each categorical feature into a series of binary indicator features encoded as 0 or 1. For example, for the column that contains the protocol type `tcp`, `udp`, or `icmp`, we can extract three binary features `isTcp`, `isUdp`, and `isIcmp` that are 0 or 1 for each data point. (And we won't forget to normalize these features too.)
+
+We can choose to apply different, fancier models rather than simple *k*-means — for example, a non-Bayesian Gaussian mixture model.
+
+Finally, we can use our newfound *k*-means familiarity to use clustering on other data sets. Where else might finding natural groupings be helpful?
+
+
+## Epilogue
+
+### Second-to-last step (for cleanliness) — How to stop and restart your Docker container
+
+Maybe you don't want to quit Spark and Zeppelin forever, but want to shut down your big data server for a while. To do this, you can stop the running container and restart it later.
+
+To stop your running container, go to the terminal window you opened it from, and hit `Ctrl+C` (or whatever your interrupt command is set to). This will stop the container.
+
+To restart the stopped container, go to a terminal window (must be a Docker Quickstart Terminal window for those using Docker Toolbox) and run `docker ps -a`. This will show all your existing containers, running or stopped. Find the line that has IMAGE `melindalu/zap` and copy the CONTAINER ID hash from it. Next run:
+
+```bash
+docker start -i <the container id you copied>
 ```
 
+and after the image runs through its startup routine, you can open a web browser to URL `localhost:8080` again and get to Zeppelin, with all your notebooks saved.
+
+
+### Last step (goodbye) — How to remove this Docker image
+
+Let's say you've decided that you're done with Spark and Zeppelin forever :cry:, and you want to reclaim the disk space our Spark/Zeppelin server has been taking up.
+
+To do this, open a terminal window (must be a Docker Quickstart Terminal window for those using Docker Toolbox) and run `docker images`. This will show all your downloaded images. Find the line that has REPOSITORY `melindalu/zap`, and copy the IMAGE ID hash from it. Next, run:
+
+```bash
+docker rmi -f <the image id you copied>
 ```
-Putting our categorical variables back in
-Better measures of cluster quality
-Streaming KMeans
-Different models
-```
+
+and your image should be gone. :dash:
