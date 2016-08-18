@@ -332,6 +332,7 @@ def clusteringScore(data: RDD[Vector], k: Int) = {
   data.map(datum => distanceToCentroid(datum, model)).mean()
 }
 
+println("%table k\tscore")
 (10 to 100 by 10).map(k => (k, clusteringScore(preparedData, k))).
   foreach { case (chosenK, score) => println(s"$chosenK\t$score") }
 ```
