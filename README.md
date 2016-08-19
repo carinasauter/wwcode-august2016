@@ -1,5 +1,9 @@
 ## Women Who Code East Bay big data workshop (August 17th, 2016)
 
+### Notes on other materials
+- Slides-plus-words of the talk that was given prior to this project are available [here](http://melindalu.com/big-data-wwcode-aug2016.html), or, if you prefer,
+- Just-the-slides are available [in this repo](https://github.com/melindalu/wwcode-august2016/blob/master/slides.pdf).
+
 For our project, we're going to build an anomaly detection system using Spark and Zeppelin.
 
 The data we'll work on comes from UC Irvine, which has a great collection of already-cleaned machine-learning datasets. The example is based on an implementation in [Advanced Analytics with Spark](http://shop.oreilly.com/product/0636920035091.do) (highly recommended if you want to dig further into Spark).
@@ -73,6 +77,8 @@ This will show a series of download and extraction steps.
 These are the different components of the Spark/Zeppelin image being downloaded and assembled.
 This requires a 777 MB download, so it may take a while.
 
+> If you want to see what goes into the Docker image you're pulling, the build instructions for it are in the `reference` directory of this repo. Feel free to build it yourself instead — the resulting image should be identical.
+
 
 #### Step 2 — Download our data set and move it to where we need it
 
@@ -135,7 +141,7 @@ docker create -v <your zeppelin-data folder path>:/var/zeppelin/data -p 8080:808
 > - `| xargs` pipes the result of `docker create` to `docker start`.
 > - `docker start -i` starts the image interactively — that is, with the container's command-line input available.
 
-This will show a series of initialization steps as Spark and Zeppelin start up.
+This will show a series of initialization message as Spark and Zeppelin start up. (Some of these will say `WARNING` — this is normal.)
 Now, open a web browser and go to URL `localhost:8080`.
 If all is well, you should see a page welcoming you to Zeppelin.
 
